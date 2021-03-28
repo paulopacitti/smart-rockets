@@ -2,9 +2,9 @@
 smart-rockets implementation in C 🚀
 
 ## Running
-`cd smart-rockets`
-`mkdir build`
-`cmake ..`
-`cd build`
-`make`
-`./smart-rockets-exec`
+- `cd smart-rockets`
+- `mkdir build`
+- `cd build`
+- `cmake ..`
+- `make`
+- `./smart-rockets-exec`

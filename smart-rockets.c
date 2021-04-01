@@ -1,7 +1,19 @@
-#include <smart-rockets.h>
-#include <stdlib.h>
-#include <math.h>
 #include <float.h>
+#include <math.h>
+#include <pthread.h>
+#include <stdlib.h>
+
+#include <smart-rockets.h>
+
+typedef struct
+{
+  Population *population;
+  unsigned short id_thread;
+} SortPopulationArgs;
+
+void* multithreadedMergeSort(void *args);
+void mergeSort(Population *population, int low, int high);
+void merge(Population *population, int low, int mid, int high);
 
 // Rocket creation
 Rocket *newRocket(int dna_length, int initial_position[2])
@@ -255,4 +267,106 @@ void updateRocket(Board *board, Rocket *rocket, int frame_idx)
   
   // Update rocket's fitness score
   rocket->fitness_score = fitness(board, rocket);
+}
+
+// Sort population by fitness value
+void sortPopulation(Population *population)
+{
+  pthread_t threads[THREAD_MAX];
+  int max = population->size;
+
+  SortPopulationArgs **args_array = malloc(max*sizeof(SortPopulationArgs*));
+  for(int i = 0; i < THREAD_MAX; i++)
+  {
+    args_array[i] = malloc(sizeof(SortPopulationArgs*));
+    args_array[i]->population = population;
+    args_array[i]->id_thread = i+1;
+  }
+  // creating 4 threads
+  for(int i = 0; i < THREAD_MAX; i++) 
+    pthread_create(&threads[i], NULL, multithreadedMergeSort, (void*) args_array[i]);
+  // joining all 4 threads
+  for(int i = 0; i < THREAD_MAX; i++)
+    pthread_join(threads[i], NULL);
+  for(int i = 0; i < THREAD_MAX; i++)
+    free(args_array[i]);
+  
+  // merging the final 4 parts
+  merge(population, 0, (max/ 2 - 1) / 2, max / 2 - 1);
+  merge(population, max / 2, max/2 + (max-1-max/2)/2, max - 1);
+  merge(population, 0, (max - 1)/2, max - 1);
+}
+
+void* multithreadedMergeSort(void *args)
+{
+    // which part out of 4 parts
+    unsigned short part = (unsigned short) ((SortPopulationArgs*) args)->id_thread;
+    int size = ((SortPopulationArgs*) args)->population->size;
+  
+    // calculating low and high
+    int low = part * (size / 4);
+    int high = (part + 1) * (size / 4) - 1;
+  
+    // evaluating mid point
+    int mid = low + (high - low) / 2;
+    if (low < high) 
+    {
+      mergeSort(((SortPopulationArgs*) args)->population, low, mid);
+      mergeSort(((SortPopulationArgs*) args)->population, mid + 1, high);
+      merge(((SortPopulationArgs*) args)->population, low, mid, high);
+    }
+}
+
+// merge sort function
+void mergeSort(Population *population, int low, int high)
+{
+    // calculating mid point of array
+    int mid = low + (high - low) / 2;
+    if (low < high) {
+  
+        // calling first half
+        mergeSort(population, low, mid);
+  
+        // calling second half
+        mergeSort(population, mid + 1, high);
+  
+        // merging the two halves
+        merge(population, low, mid, high);
+    }
+}
+
+void merge(Population *population, int low, int mid, int high)
+{
+    Rocket** left = malloc((mid - low + 1)*sizeof(Rocket*));
+    Rocket** right = malloc((high - mid)*sizeof(Rocket*));
+  
+    // left_size is size of left part and right_size is the size of right part
+    int left_size = mid - low + 1;
+    int right_size = high - mid;
+    int i, j;
+  
+    // storing values in left part
+    for (i = 0; i < left_size; i++)
+      left[i] = population->rockets[i + low];
+    // storing values in right part
+    for (i = 0; i < right_size; i++)
+      right[i] = population->rockets[i + mid + 1];
+    
+    // merge left and right in ascending order
+    int k = low;
+    i = j = 0;
+    while (i < left_size && j < right_size) 
+    {
+      if (left[i] <= right[j])
+        population->rockets[k++] = left[i++];
+      else
+        population->rockets[k++] = right[j++];
+    }
+  
+    // insert remaining values from left
+    while (i < left_size) 
+      population->rockets[k++] = left[i++];
+    // insert remaining values from right
+    while (j < right_size)
+      population->rockets[k++] = right[j++];
 }

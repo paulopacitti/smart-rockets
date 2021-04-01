@@ -1,6 +1,7 @@
 #define GENE_LENGTH 10
-#define POPULATION_SIZE 50
 #define N_OBSTACLES 5
+#define POPULATION_SIZE 50
+#define THREAD_MAX 4
 
 // Rockets
 typedef struct
@@ -64,3 +65,6 @@ float fitness(Board *board, Rocket *rocket);
 
 // Rocket update
 void updateRocket(Board *board, Rocket *rocket, int frame_idx);
+
+// Sort population by fitness value
+void sortPopulation(Population *population);

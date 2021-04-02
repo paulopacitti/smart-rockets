@@ -76,18 +76,18 @@ int debug(){
       updateRocket(board_2, population_1->rockets[idx], frame_idx);
     }
   }
-  for(int idx=0; idx<population_1->size; idx++)
-  {
-    printf("Rocket %d position: (%.2f,%.2f) | Fitness: %.10f \n", idx, population_1->rockets[idx]->x, population_1->rockets[idx]->y, population_1->rockets[idx]->fitness_score);
-  }
-  
-  population_1 = nextGeneration(population_1, initial_position);
   sortPopulation(population_1);
   for(int idx=0; idx<population_1->size; idx++)
   {
     printf("Rocket %d position: (%.2f,%.2f) | Fitness: %.10f \n", idx, population_1->rockets[idx]->x, population_1->rockets[idx]->y, population_1->rockets[idx]->fitness_score);
   }
   
+  population_1 = nextGeneration(population_1, initial_position);
+  for(int idx=0; idx<population_1->size; idx++)
+  {
+    printf("Rocket %d position: (%.2f,%.2f) | Fitness: %.10f \n", idx, population_1->rockets[idx]->x, population_1->rockets[idx]->y, population_1->rockets[idx]->fitness_score);
+  }
+
   destroyPopulation(population_1);
   destroyBoard(board_2);
   printf("____________________________________________________\n\n");

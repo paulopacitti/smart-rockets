@@ -8,7 +8,7 @@
 typedef struct
 {
   Population *population;
-  unsigned short id_thread;
+  int id_thread;
 } SortPopulationArgs;
 
 void* multithreadedMergeSort(void *args);
@@ -152,7 +152,7 @@ Population *nextGeneration(Population *population, int initial_position[2])
   // Allocate population's rockets memory
   newPopulation->rockets = malloc(sizeof(Rocket) * newPopulation->size);
   
-  // TODO: Use multithread merge sort using rocket's fitness score
+  sortPopulation(population);
   // Breed 25 best rockets
   for(int idx=0; idx<population->size; idx++){
     Rocket *parent_a = population->rockets[rand() % 25];
@@ -280,7 +280,7 @@ void sortPopulation(Population *population)
   {
     args_array[i] = malloc(sizeof(SortPopulationArgs*));
     args_array[i]->population = population;
-    args_array[i]->id_thread = i+1;
+    args_array[i]->id_thread = i;
   }
   // creating 4 threads
   for(int i = 0; i < THREAD_MAX; i++) 
@@ -300,7 +300,7 @@ void sortPopulation(Population *population)
 void* multithreadedMergeSort(void *args)
 {
     // which part out of 4 parts
-    unsigned short part = (unsigned short) ((SortPopulationArgs*) args)->id_thread;
+    int part = (int) ((SortPopulationArgs*) args)->id_thread;
     int size = ((SortPopulationArgs*) args)->population->size;
   
     // calculating low and high
@@ -323,15 +323,12 @@ void mergeSort(Population *population, int low, int high)
     // calculating mid point of array
     int mid = low + (high - low) / 2;
     if (low < high) {
-  
-        // calling first half
-        mergeSort(population, low, mid);
-  
-        // calling second half
-        mergeSort(population, mid + 1, high);
-  
-        // merging the two halves
-        merge(population, low, mid, high);
+      // calling first half
+      mergeSort(population, low, mid);
+      // calling second half
+      mergeSort(population, mid + 1, high);
+      // merging the two halves
+      merge(population, low, mid, high);
     }
 }
 
@@ -357,7 +354,7 @@ void merge(Population *population, int low, int mid, int high)
     i = j = 0;
     while (i < left_size && j < right_size) 
     {
-      if (left[i] <= right[j])
+      if (left[i]->fitness_score >= right[j]->fitness_score)
         population->rockets[k++] = left[i++];
       else
         population->rockets[k++] = right[j++];
@@ -369,4 +366,7 @@ void merge(Population *population, int low, int mid, int high)
     // insert remaining values from right
     while (j < right_size)
       population->rockets[k++] = right[j++];
+
+    free(left);
+    free(right);
 }

@@ -2,6 +2,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include <smart-rockets.h>
 
@@ -153,10 +154,10 @@ Population *nextGeneration(Population *population, int initial_position[2])
   newPopulation->rockets = malloc(sizeof(Rocket) * newPopulation->size);
   
   sortPopulation(population);
-  // Breed 25 best rockets
+  // Breed 1/4 best rockets
   for(int idx=0; idx<population->size; idx++){
-    Rocket *parent_a = population->rockets[rand() % 25];
-    Rocket *parent_b = population->rockets[rand() % 25];
+    Rocket *parent_a = population->rockets[rand() % (int)(population->size / 4)];
+    Rocket *parent_b = population->rockets[rand() % (int)(population->size / 4)];
     newPopulation->rockets[idx] = breed(parent_a, parent_a, population->mutation_factor, initial_position);
   }
   
@@ -275,37 +276,38 @@ void sortPopulation(Population *population)
   pthread_t threads[THREAD_MAX];
   int max = population->size;
 
-  SortPopulationArgs **args_array = malloc(max*sizeof(SortPopulationArgs*));
+  SortPopulationArgs **args_array = malloc(THREAD_MAX*sizeof(SortPopulationArgs*));
   for(int i = 0; i < THREAD_MAX; i++)
   {
     args_array[i] = malloc(sizeof(SortPopulationArgs*));
     args_array[i]->population = population;
     args_array[i]->id_thread = i;
   }
-  // creating 4 threads
+  // creating threads
   for(int i = 0; i < THREAD_MAX; i++) 
     pthread_create(&threads[i], NULL, multithreadedMergeSort, (void*) args_array[i]);
-  // joining all 4 threads
+  // joining all threads
   for(int i = 0; i < THREAD_MAX; i++)
     pthread_join(threads[i], NULL);
-  for(int i = 0; i < THREAD_MAX; i++)
-    free(args_array[i]);
   
   // merging the final 4 parts
   merge(population, 0, (max/ 2 - 1) / 2, max / 2 - 1);
   merge(population, max / 2, max/2 + (max-1-max/2)/2, max - 1);
   merge(population, 0, (max - 1)/2, max - 1);
+
+  for(int i = 0; i < THREAD_MAX; i++)
+    free(args_array[i]);
 }
 
+// Each thread created sort using mergeSort
 void* multithreadedMergeSort(void *args)
 {
-    // which part out of 4 parts
     int part = (int) ((SortPopulationArgs*) args)->id_thread;
     int size = ((SortPopulationArgs*) args)->population->size;
   
     // calculating low and high
-    int low = part * (size / 4);
-    int high = (part + 1) * (size / 4) - 1;
+    int low = part * (size / THREAD_MAX);
+    int high = (part + 1) * (size / THREAD_MAX) - 1;
   
     // evaluating mid point
     int mid = low + (high - low) / 2;
@@ -317,10 +319,8 @@ void* multithreadedMergeSort(void *args)
     }
 }
 
-// merge sort function
 void mergeSort(Population *population, int low, int high)
 {
-    // calculating mid point of array
     int mid = low + (high - low) / 2;
     if (low < high) {
       // calling first half
@@ -337,7 +337,6 @@ void merge(Population *population, int low, int mid, int high)
     Rocket** left = malloc((mid - low + 1)*sizeof(Rocket*));
     Rocket** right = malloc((high - mid)*sizeof(Rocket*));
   
-    // left_size is size of left part and right_size is the size of right part
     int left_size = mid - low + 1;
     int right_size = high - mid;
     int i, j;
@@ -354,7 +353,7 @@ void merge(Population *population, int low, int mid, int high)
     i = j = 0;
     while (i < left_size && j < right_size) 
     {
-      if (left[i]->fitness_score >= right[j]->fitness_score)
+      if (left[i]->fitness_score <= right[j]->fitness_score)
         population->rockets[k++] = left[i++];
       else
         population->rockets[k++] = right[j++];

@@ -1,7 +1,4 @@
-#define GENE_LENGTH 10
-#define N_OBSTACLES 5
-#define POPULATION_SIZE 50
-#define THREAD_MAX 4
+#define THREAD_MAX 4 // changing this value breaks quick sort multithreaded immplementation!
 
 // Rockets
 typedef struct

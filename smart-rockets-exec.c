@@ -111,7 +111,30 @@ int debug(){
 }
 
 int main(){
-  debug();
-  
+  int initial_position[2] = {100,100};
+  int target[2] = {100,0};
+
+  int dna_length = 50;
+  int population_size = 20;
+  unsigned int generation = 1;
+
+  int width, height  = 500, 500;
+  int n_obstacles = 5;
+  float mutation_factor = 5;
+
+  Board *board = newBoard(width, height, target, n_obstacles);
+  Population *population = newPopulation(population_size, dna_length, initial_position, mutation_factor);
+
+  while(true)
+  {
+    //TODO: create a rocket lifecycle function
+    for(int i = 0; i < population_size; i++) 
+      pthread_create(&threads[i], NULL, lifecycle, (void*) args_array[i]);
+    for(int i = 0; i < population_size; i++)
+      pthread_join(threads[i], NULL);
+    // TODO: print results of the generation
+    population_1 = nextGeneration(population_1, initial_position);
+    generation += 1 
+  }
   return 0;
 }

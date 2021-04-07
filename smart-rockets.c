@@ -21,6 +21,9 @@ Rocket *newRocket(int dna_length, int initial_position[2])
 {
   // Allocate rocket memory
   Rocket *rocket = malloc(sizeof(Rocket));
+
+  //Set rocket is a live
+  rocket->live = 1;
   
   // Set dna length
   rocket->dna_length = dna_length;
@@ -55,6 +58,9 @@ Rocket *breed(Rocket *parent_a, Rocket *parent_b, int mutation_factor, int initi
 {
   // Allocate rocket memory
   Rocket *rocket =  malloc(sizeof(Rocket));
+
+  //Set rocket is a live
+  rocket->live = 1;
   
   // Set dna length
   rocket->dna_length = parent_a->dna_length;
@@ -177,7 +183,7 @@ void destroyPopulation(Population *population)
 }
 
 // Board creation
-Board *newBoard(int width, int height, int target[2], int n_obstacles)
+Board *newBoard(int width, int height, int target[2],int targetRadius, int n_obstacles)
 {
   // Allocate board memory
   Board *board = malloc(sizeof(Board));
@@ -189,6 +195,7 @@ Board *newBoard(int width, int height, int target[2], int n_obstacles)
   // Set target
   board->target[0] = target[0];
   board->target[1] = target[1];
+  board->targetRadius = targetRadius;
   
   // Set number of obstacles
   board->n_obstacles = n_obstacles;
@@ -254,17 +261,62 @@ float fitness(Board *board, Rocket *rocket)
     1/distance;
 }
 
+void UpdateRocketPosition(Board *board, Rocket *rocket){
+  float destination_x = rocket->x + rocket->velocity[0];
+  float destination_y = rocket->y + rocket->velocity[1];
+  int maxTargetPosition_x = board->target[0] + board->targetRadius;
+  int minTargetPosition_x = board->target[0] - board->targetRadius;
+  int maxTargetPosition_y = board->target[1] + board->targetRadius;
+  int minTargetPosition_y = board->target[1] - board->targetRadius;
+
+  // Check the collision with the obstacles
+
+
+  // Check the collision with the target
+  if (destination_x > minTargetPosition_x && destination_x < maxTargetPosition_x){
+    if (destination_y > minTargetPosition_y && destination_y < maxTargetPosition_y){
+      rocket->live = 0;
+    }
+  }
+
+  // Check the collision with the board limits
+  if (destination_x > board->width)
+  {
+    rocket->live = 0;
+    destination_x = board->width;
+  }
+  else if(destination_x < 0)
+  {
+    rocket->live = 0;
+    destination_x = 0;
+  }
+  if (destination_y > board->height)
+  {
+    rocket->live = 0;
+    destination_y = board->height;
+  }
+  else if(destination_y < 0)
+  {
+    rocket->live = 0;
+    destination_y = 0;
+  }
+
+  rocket->x = destination_x;
+  rocket->y = destination_y;
+}
+
 // Rocket update
 void updateRocket(Board *board, Rocket *rocket, int frame_idx)
 {
+  if (rocket->live == 0)
+    return;
+  
   // TODO: Check for max velocity, off-screen movement and obstacle collision(maybe multithread?)
   // Update rocket's velocity
   rocket->velocity[0] += rocket->dna[frame_idx][0];
   rocket->velocity[1] += rocket->dna[frame_idx][1];
   
-  // Update rocket's position
-  rocket->x += rocket->velocity[0];
-  rocket->y += rocket->velocity[1];
+  UpdateRocketPosition(board, rocket);  
   
   // Update rocket's fitness score
   rocket->fitness_score = fitness(board, rocket);

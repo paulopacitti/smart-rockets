@@ -214,13 +214,24 @@ Board *newBoard(int width, int height, int target[2],int targetRadius, int n_obs
   for(int idx = 0; idx<n_obstacles; idx++)
   {
     // Free Rocket
+    int var_temp;
     int x0 = rand() % width;
     int y0 = rand() % height;
     int x1 = rand() % width;
     int y1 = rand() % height;
+   
+    if (x0 > x1){
+      var_temp = x0;
+      x0 = x1;
+      x1 = var_temp;
+    }
+    if (y0 > y1){
+      var_temp = y0;
+      y0 = y1;
+      y1 = var_temp;
+    }
     board->obstacles[idx] = newObstacle(x0, y0, x1, y1);
   }
-  
   return board;
 }
 
@@ -243,7 +254,7 @@ Obstacle *newObstacle(int x0, int y0, int x1, int y1)
   obstacle->x0 = x0;
   obstacle->y0 = y0;
   obstacle->x1 = x1;
-  obstacle->x1 = x1;
+  obstacle->y1 = y1;
   
   return obstacle;
 }
@@ -303,8 +314,10 @@ void UpdateRocketPosition(Board *board, Rocket *rocket){
     pthread_create(&threads[idx], NULL, CheckCollisionObstacle_usingThreads, (void*) args[idx]);
   for(int idx = 0; idx < board->n_obstacles; idx++)
     pthread_join(threads[idx], NULL);
+
+  // Updates the live rocket calculated on the threads
   for(int i = 0; i < board->n_obstacles; i++)
-    free(args[i]);
+    rocket->live = args[i]->liveRocket;
 
   // Check the collision with the target
   if (rocketDestination_x > minTargetPosition_x && rocketDestination_x < maxTargetPosition_x){
@@ -337,12 +350,15 @@ void UpdateRocketPosition(Board *board, Rocket *rocket){
 
   rocket->x = rocketDestination_x;
   rocket->y = rocketDestination_y;
+
+  for(int i = 0; i < board->n_obstacles; i++)
+    free(args[i]);
 }
 
 // Rocket update
 void updateRocket(Board *board, Rocket *rocket, int frame_idx)
 {
-  if (rocket->live == 0)
+  if (rocket->live > 1)
     return;
   
   // TODO: Check for max velocity, off-screen movement and obstacle collision(maybe multithread?)

@@ -12,7 +12,7 @@ int debug(){
   int population_size = 20;
   int width = 500;
   int height = 500;
-  int n_obstacles = 5;
+  int n_obstacles = 7;
   float mutation_factor = 5;
   
   // Rocket *rocket = newRocket(dna_length, initial_position);

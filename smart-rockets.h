@@ -7,6 +7,7 @@ typedef struct
   float velocity[2];
   float **dna;
   int dna_length;
+  int live;
   float fitness_score;
 } Rocket;
 
@@ -29,6 +30,7 @@ typedef struct
 {
   int width, height;
   int target[2];
+  int targetRadius;
   Obstacle **obstacles;
   int n_obstacles;
 } Board;
@@ -48,7 +50,7 @@ Population *nextGeneration(Population *population, int initial_position[2]);
 void destroyPopulation(Population *population);
 
 // Board creation/destruction
-Board *newBoard(int width, int height, int target[2], int n_obstacles);
+Board *newBoard(int width, int height, int target[2], int targetRadius, int n_obstacles);
 
 void destroyBoard(Board *board);
 

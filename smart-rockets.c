@@ -14,11 +14,10 @@ typedef struct
 
 typedef struct
 {
-  Obstacle *obstacles;
-  int liveRocket;
-  float rocketDestination_x;
-  float rocketDestination_y;
-} infoRocketCollisionObstacle;
+  Obstacle *obstacle;
+  Rocket *rocket;
+  int *obstacle_hit;
+} ObstacleCollisionArgs;
 
 void* multithreadedMergeSort(void *args);
 void mergeSort(Population *population, int low, int high);
@@ -30,8 +29,8 @@ Rocket *newRocket(int dna_length, int initial_position[2])
   // Allocate rocket memory
   Rocket *rocket = malloc(sizeof(Rocket));
 
-  //Set rocket is a live
-  rocket->live = 1;
+  //Set rocket is alive
+  rocket->alive = 1;
   
   // Set dna length
   rocket->dna_length = dna_length;
@@ -55,8 +54,8 @@ Rocket *newRocket(int dna_length, int initial_position[2])
   {
     // Allocate Gene
     rocket->dna[idx] = malloc(sizeof(float) * 2);
-    rocket->dna[idx][0] = (rand() % 10) - 5;
-    rocket->dna[idx][1] = (rand() % 10) - 5;
+    rocket->dna[idx][0] = (rand() % 6) - 3;
+    rocket->dna[idx][1] = (rand() % 6) - 3;
   }
 
   return rocket;
@@ -67,8 +66,8 @@ Rocket *breed(Rocket *parent_a, Rocket *parent_b, int mutation_factor, int initi
   // Allocate rocket memory
   Rocket *rocket =  malloc(sizeof(Rocket));
 
-  //Set rocket is a live
-  rocket->live = 1;
+  //Set rocket is alive
+  rocket->alive = 1;
   
   // Set dna length
   rocket->dna_length = parent_a->dna_length;
@@ -106,8 +105,8 @@ Rocket *breed(Rocket *parent_a, Rocket *parent_b, int mutation_factor, int initi
     
     // Mutate
     if(rand() % 100 < mutation_factor){
-      rocket->dna[idx][0] = (rand() % 10) - 5;
-      rocket->dna[idx][1] = (rand() % 10) - 5;
+      rocket->dna[idx][0] = (rand() % 6) - 3;
+      rocket->dna[idx][1] = (rand() % 6) - 3;
     }
   }
 
@@ -191,7 +190,7 @@ void destroyPopulation(Population *population)
 }
 
 // Board creation
-Board *newBoard(int width, int height, int target[2],int targetRadius, int n_obstacles)
+Board *newBoard(int width, int height, int target[2],int target_radius, int n_obstacles)
 {
   // Allocate board memory
   Board *board = malloc(sizeof(Board));
@@ -203,7 +202,7 @@ Board *newBoard(int width, int height, int target[2],int targetRadius, int n_obs
   // Set target
   board->target[0] = target[0];
   board->target[1] = target[1];
-  board->targetRadius = targetRadius;
+  board->target_radius = target_radius;
   
   // Set number of obstacles
   board->n_obstacles = n_obstacles;
@@ -217,8 +216,8 @@ Board *newBoard(int width, int height, int target[2],int targetRadius, int n_obs
     int var_temp;
     int x0 = rand() % width;
     int y0 = rand() % height;
-    int x1 = rand() % width;
-    int y1 = rand() % height;
+    int x1 = x0 + 30;
+    int y1 = y0 + 10;
    
     if (x0 > x1){
       var_temp = x0;
@@ -265,108 +264,91 @@ void destroyObstacle(Obstacle *obstacle)
   free(obstacle);
 }
 
+//Distance utility function
+float distance(float x0, float y0, float x1, float y1)
+{
+  return sqrt((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1));
+}
+
 // Fitness function
 float fitness(Board *board, Rocket *rocket)
 {
   // Calculate rocket's distance from board's target
-  float distance = sqrt(
-    (rocket->x - board->target[0]) * (rocket->x - board->target[0]) +
-    (rocket->y - board->target[1]) * (rocket->y - board->target[1])
-  );
+  float targetDistance = distance(rocket->x, rocket->y, board->target[0], board->target[1]);
   
   // Return Maximum float if rocket is right on target else 1/distance
   return ((rocket->x - board->target[0]) == 0 && (rocket->y - board->target[1]) == 0) ?
     FLT_MAX :
-    1/distance;
+    1000/targetDistance;
 }
 
-void* CheckCollisionObstacle_usingThreads (void *args){
-  float rocketDestination_x = ((infoRocketCollisionObstacle*) args)->rocketDestination_x;
-  float rocketDestination_y = ((infoRocketCollisionObstacle*) args)->rocketDestination_y;
-  Obstacle *obstacle = ((infoRocketCollisionObstacle*) args)->obstacles;
-
-  if (rocketDestination_x > obstacle->x0 && rocketDestination_x < obstacle->x1){
-    if (rocketDestination_y > obstacle->y0 && rocketDestination_y < obstacle->y1){
-      ((infoRocketCollisionObstacle*) args)->liveRocket = 0;
-    }
-  }
+void *checkObstacleCollision(void *args)
+{
+  Rocket *rocket = ((ObstacleCollisionArgs *)args)->rocket;
+  Obstacle *obstacle = ((ObstacleCollisionArgs *)args)->obstacle;
+  int *obstacle_hit = ((ObstacleCollisionArgs *)args)->obstacle_hit;
+  free(args);
+  
+  // Check obstacle collision
+  if ((rocket->x >= fmin(obstacle->x0, obstacle->x1) && 
+       rocket->x <= fmax(obstacle->x0, obstacle->x1)) ||
+      (rocket->y >= fmin(obstacle->y0, obstacle->y1) && 
+       rocket->y <= fmax(obstacle->y0, obstacle->y1)))
+    *obstacle_hit = 1;
 }
 
-void UpdateRocketPosition(Board *board, Rocket *rocket){
+void checkCollisions(Board *board, Rocket *rocket)
+{
+  // Check wall collision
+  if (rocket->x < 0 || rocket->x >= board->width || 
+      rocket->y < 0 || rocket->y >= board->height)
+    rocket->alive = 0;
+  
+  // Check target collision
+  if(distance(rocket->x, rocket->y, board->target[0], board->target[1]) <= board->target_radius)
+    rocket->alive = 0;
+  
+  // Check obstacles collision
   pthread_t threads[board->n_obstacles];
-  float rocketDestination_x = rocket->x + rocket->velocity[0];
-  float rocketDestination_y = rocket->y + rocket->velocity[1];
-  int maxTargetPosition_x = board->target[0] + board->targetRadius;
-  int minTargetPosition_x = board->target[0] - board->targetRadius;
-  int maxTargetPosition_y = board->target[1] + board->targetRadius;
-  int minTargetPosition_y = board->target[1] - board->targetRadius;
-
-  // Check the collision with the obstacles with threads
-  infoRocketCollisionObstacle **args = malloc(board->n_obstacles*sizeof(infoRocketCollisionObstacle*));
-  for(int i = 0; i < board->n_obstacles; i++)
-  {
-    args[i] = malloc(sizeof(infoRocketCollisionObstacle*));
-    args[i]->obstacles = board->obstacles[i];
-    args[i]->rocketDestination_x = rocketDestination_x;
-    args[i]->rocketDestination_y = rocketDestination_y;
+  int **obstacle_hit = malloc(sizeof(int)*board->n_obstacles);
+  // Launch threads
+  for(int idx = 0; idx < board->n_obstacles; idx++){
+    ObstacleCollisionArgs *args = malloc(sizeof(ObstacleCollisionArgs));
+    args->obstacle = board->obstacles[idx];
+    args->rocket = rocket;
+    obstacle_hit[idx] = malloc(sizeof(int));
+    args->obstacle_hit = obstacle_hit[idx];
+    pthread_create(&threads[idx], NULL, checkObstacleCollision, (void*) args);
   }
+
+  // Join threads
   for(int idx = 0; idx < board->n_obstacles; idx++)
-    pthread_create(&threads[idx], NULL, CheckCollisionObstacle_usingThreads, (void*) args[idx]);
-  for(int idx = 0; idx < board->n_obstacles; idx++)
+  {
     pthread_join(threads[idx], NULL);
-
-  // Updates the live rocket calculated on the threads
-  for(int i = 0; i < board->n_obstacles; i++)
-    rocket->live = args[i]->liveRocket;
-
-  // Check the collision with the target
-  if (rocketDestination_x > minTargetPosition_x && rocketDestination_x < maxTargetPosition_x){
-    if (rocketDestination_y > minTargetPosition_y && rocketDestination_y < maxTargetPosition_y){
-      rocket->live = 0;
-    }
   }
-
-  // Check the collision with the board limits
-  if (rocketDestination_x > board->width)
+  
+  // Check for hits
+  for(int idx = 0; idx < board->n_obstacles; idx++)
   {
-    rocket->live = 0;
-    rocketDestination_x = board->width;
+    if (rocket->alive > 1 && obstacle_hit[idx] > 0)
+        rocket->alive = 0;
   }
-  else if(rocketDestination_x < 0)
-  {
-    rocket->live = 0;
-    rocketDestination_x = 0;
-  }
-  if (rocketDestination_y > board->height)
-  {
-    rocket->live = 0;
-    rocketDestination_y = board->height;
-  }
-  else if(rocketDestination_y < 0)
-  {
-    rocket->live = 0;
-    rocketDestination_y = 0;
-  }
-
-  rocket->x = rocketDestination_x;
-  rocket->y = rocketDestination_y;
-
-  for(int i = 0; i < board->n_obstacles; i++)
-    free(args[i]);
 }
 
 // Rocket update
 void updateRocket(Board *board, Rocket *rocket, int frame_idx)
 {
-  if (rocket->live > 1)
-    return;
-  
-  // TODO: Check for max velocity, off-screen movement and obstacle collision(maybe multithread?)
+  // TODO: Check for max velocity
   // Update rocket's velocity
   rocket->velocity[0] += rocket->dna[frame_idx][0];
   rocket->velocity[1] += rocket->dna[frame_idx][1];
   
-  UpdateRocketPosition(board, rocket);  
+  // Update rocket's position
+  rocket->x += rocket->velocity[0];
+  rocket->y += rocket->velocity[1];
+  
+  // Check collision against board's walls, target and obstacles
+  checkCollisions(board, rocket);
   
   // Update rocket's fitness score
   rocket->fitness_score = fitness(board, rocket);
@@ -385,14 +367,14 @@ void sortPopulation(Population *population)
     args_array[i]->population = population;
     args_array[i]->id_thread = i;
   }
-  // creating threads
+  // Creating threads
   for(int i = 0; i < THREAD_MAX; i++) 
     pthread_create(&threads[i], NULL, multithreadedMergeSort, (void*) args_array[i]);
-  // joining all threads
+  // Joining all threads
   for(int i = 0; i < THREAD_MAX; i++)
     pthread_join(threads[i], NULL);
   
-  // merging the final 4 parts
+  // Merging the final 4 parts
   merge(population, 0, (max/ 2 - 1) / 2, max / 2 - 1);
   merge(population, max / 2, max/2 + (max-1-max/2)/2, max - 1);
   merge(population, 0, (max - 1)/2, max - 1);
@@ -407,11 +389,11 @@ void* multithreadedMergeSort(void *args)
     int part = (int) ((SortPopulationArgs*) args)->id_thread;
     int size = ((SortPopulationArgs*) args)->population->size;
   
-    // calculating low and high
+    // Calculating low and high
     int low = part * (size / THREAD_MAX);
     int high = (part + 1) * (size / THREAD_MAX) - 1;
   
-    // evaluating mid point
+    // Evaluating mid point
     int mid = low + (high - low) / 2;
     if (low < high) 
     {
@@ -425,11 +407,11 @@ void mergeSort(Population *population, int low, int high)
 {
     int mid = low + (high - low) / 2;
     if (low < high) {
-      // calling first half
+      // Calling first half
       mergeSort(population, low, mid);
-      // calling second half
+      // Calling second half
       mergeSort(population, mid + 1, high);
-      // merging the two halves
+      // Merging the two halves
       merge(population, low, mid, high);
     }
 }
@@ -443,28 +425,28 @@ void merge(Population *population, int low, int mid, int high)
     int right_size = high - mid;
     int i, j;
   
-    // storing values in left part
+    // Storing values in left part
     for (i = 0; i < left_size; i++)
       left[i] = population->rockets[i + low];
-    // storing values in right part
+    // Storing values in right part
     for (i = 0; i < right_size; i++)
       right[i] = population->rockets[i + mid + 1];
     
-    // merge left and right in ascending order
+    // Merge left and right in ascending order
     int k = low;
     i = j = 0;
     while (i < left_size && j < right_size) 
     {
-      if (left[i]->fitness_score <= right[j]->fitness_score)
+      if (left[i]->fitness_score >= right[j]->fitness_score)
         population->rockets[k++] = left[i++];
       else
         population->rockets[k++] = right[j++];
     }
   
-    // insert remaining values from left
+    // Insert remaining values from left
     while (i < left_size) 
       population->rockets[k++] = left[i++];
-    // insert remaining values from right
+    // Insert remaining values from right
     while (j < right_size)
       population->rockets[k++] = right[j++];
 
